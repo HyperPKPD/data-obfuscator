@@ -1,4 +1,4 @@
-# data-obfuscator
+# Pharmacometrics Data Obfuscator
 
 **Mask a NONMEM-style pharmacometric dataset so it can be shown to an LLM or a collaborator, without
 breaking the PK/PD structure that makes the data worth analysing.**

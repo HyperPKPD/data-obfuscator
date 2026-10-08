@@ -1,0 +1,33 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.5  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 11-level2-clinical
+#  Purpose     : Level 2 (the default): a sensible balance for sharing
+#              : with an LLM or collaborator.
+#  Masking     : Level 1 plus recoded ARM / SEX / RACE / COUNTRY, dates
+#              : shifted by one dataset-wide offset (intervals kept),
+#              : free-text columns redacted.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/11-level2-clinical.txt
+#  Next step   : Paste a prompt from llm.txt together with
+#              : obfuscated.csv.
+#  Note        : PK/PD columns (TIME, TAD, DV, AMT, RATE, EVID, MDV,
+#              : CMT ...) and all covariate values stay exact.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/level2-clinical
+level  = 2
+seed   = 42
+id_style = sequential
+date_shift_days = 1-100        # random decimal number of days (e.g. 23.6); written to keymap.txt

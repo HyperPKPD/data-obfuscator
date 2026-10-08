@@ -1,0 +1,37 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.4  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 20-purpose-qc
+#  Purpose     : Quality control of a dataset by an LLM: keep the
+#              : structure complete and exact so real problems stay
+#              : visible.
+#  Masking     : Level 2 labels and dates masked; NO scaling; every
+#              : PK/PD and covariate column kept exactly; free text
+#              : dropped.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/20-purpose-qc.txt
+#  Next step   : Paste prompt 3 (PERFORM QUALITY CONTROL CHECKS) from
+#              : llm.txt.
+#  Note        : Dates are shifted by one offset, so intervals between
+#              : dates still check out.
+#  Note        : Do not use level 3 or 4 for QC: scaled covariates
+#              : cannot be checked for physiological plausibility.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/purpose-qc
+level  = 2
+seed   = 42
+id_style = padded
+drop_freetext = true
+date_columns = DATE

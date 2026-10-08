@@ -1,0 +1,49 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.6  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 35-rename-listed-columns
+#  Purpose     : Rename the columns whose NAMES give away the study
+#              : (PROTNAME, SITENAME, INVESTIGATOR) and choose the new
+#              : name of one covariate.
+#  Masking     : Level 3. rename_columns lists what to rename: PROTNAME,
+#              : SITENAME and INVESTIGATOR get automatic names (COL07,
+#              : COL09, COL10); WT=BODYSIZE picks the name BODYSIZE.
+#  Run it      : data-obfuscator run --config examples/configs/35-rename-listed-columns.txt
+#  Next step   : Open keymap.txt and read section 1 (COLUMN RENAMING).
+#  Note        : Expected run: no warnings. Every renamed column is
+#              : listed in the "COLUMN RENAMING" section of keymap.txt
+#              : (original name -> new name); keep keymap.txt private.
+#  Note        : Renaming changes column NAMES only, never the values.
+#              : column_report.txt and summary.txt list the ORIGINAL
+#              : names, so do not share them either.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option and examples/README.md
+#              : for the example datasets. Command line flags override
+#              : anything set here.
+# ========================================================================
+
+input  = examples/datasets/pk_oral_pooled_multi_id.csv
+output = ./masked/rename-listed
+level  = 3
+seed   = 2024
+
+id_column        = ID
+subject_column   = USUBJID, SUBJID
+study_column     = STU, STUDYID, STUDY, PROTNAME
+site_column      = SITEID, SITENAME
+treatment_column = ARM, ARMCD
+user_column      = INVESTIGATOR
+date_columns     = DATE
+freetext_columns = COMMENT
+
+# --- renaming -------------------------------------------------------------
+# NAME alone = automatic name (prefix + column position); OLD=NEW = your own name.
+rename_columns = PROTNAME, SITENAME, INVESTIGATOR, WT=BODYSIZE
+# rename_prefix = COL            # prefix of automatic names (default COL -> COL07)

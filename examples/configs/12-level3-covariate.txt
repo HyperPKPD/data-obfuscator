@@ -1,0 +1,42 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.4  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 12-level3-covariate
+#  Purpose     : Level 3: also rescale continuous covariates so their
+#              : real values cannot be read off.
+#  Masking     : Level 2 plus numeric scaling: every valid number in
+#              : each covariate column (WT, AGE, HT, BMI, labs and any
+#              : scale_columns) is multiplied OR divided by one hidden
+#              : random factor between 1 and 20 - a different factor
+#              : and direction for each column.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/12-level3-covariate.txt
+#  Next step   : Use prompt 1 (analysis) from llm.txt; it already tells
+#              : the LLM which columns were rescaled. The factor of
+#              : every column is written to keymap.txt.
+#  Note        : Because the factor is per column, a covariate that is
+#              : constant within a subject stays constant, and ratios
+#              : and rank order are kept - but absolute values and
+#              : units are no longer real.
+#  Note        : Narrow or widen the factor with scale_range = MIN-MAX
+#              : (default 1-20). A range starting near 1 can leave
+#              : values close to the originals.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/level3-covariate
+level  = 3
+seed   = 42
+id_style = sequential
+# scale_range = 1-20            # default; factor is drawn once per column
+# scale_columns = WT, AGE       # add your own numeric columns here

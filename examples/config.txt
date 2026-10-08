@@ -1,0 +1,41 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.2  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : config (original example)
+#  Purpose     : Worked example with explicit column roles; masks
+#              : examples/sample.csv at level 2 and keeps 16 columns.
+#  Run it      : cd examples
+#              : data-obfuscator run --config config.txt
+#  Note        : Paths here are relative to the folder you run from, so
+#              : run it from inside examples/. More ready-made configs
+#              : (by level and by purpose) are in examples/configs/.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this header.
+#  Docs        : See CONFIGS.md. Command line flags override this file.
+# ========================================================================
+
+# data-obfuscator options file
+# CLI flags override these values.
+# Usage: data-obfuscator run --config examples/config.txt
+
+input = sample.csv
+output = ./masked
+level = 2
+keep = ID, USUBJID, STUDYID, SITEID, ARM, TIME, TAD, AMT, DV, EVID, MDV, CMT, WT, AGE, SEX, DATE
+id_column = ID
+subject_column = USUBJID
+study_column = STUDYID
+site_column = SITEID
+treatment_column = ARM
+user_column = INVESTIGATOR
+date_columns = DATE
+seed = 42
+delimiter = auto
+id_style = sequential
+write_keymap = true
+drop_freetext = false
+verbose = true

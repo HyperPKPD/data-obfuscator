@@ -1,0 +1,40 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.3  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 34-pkpd-tab-delimited
+#  Purpose     : Mask the tab-separated PK/PD example
+#              : (pkpd_dvid_endpoints.tsv) that has two endpoints
+#              : distinguished by DVID.
+#  Masking     : Level 2. DVID, CMT, EVID, MDV, TIME, TAD, DV, AMT stay
+#              : exact so PK (DVID 1) and PD (DVID 2) rows keep their
+#              : meaning; SAMPLEID is treated as an identifier.
+#  Run it      : data-obfuscator run --config examples/configs/34-pkpd-
+#              : tab-delimited.txt
+#  Next step   : Paste prompt 1 or 2 from llm.txt; mention that DVID
+#              : selects the endpoint.
+#  Note        : Expected run: no warnings. The tab delimiter is
+#              : detected automatically and the output is written as
+#              : obfuscated.tsv.
+#  Note        : SAMPLEID is not a standard name, so it is listed under
+#              : sensitive; without that line the run warns that it is
+#              : passed through unchanged.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option and examples/README.md
+#              : for the example datasets. Command line flags override
+#              : anything set here.
+# ========================================================================
+
+input  = examples/datasets/pkpd_dvid_endpoints.tsv
+output = ./masked/pkpd-tsv
+level  = 2
+seed   = 42
+sensitive        = SAMPLEID
+freetext_columns = COMMENT
+date_columns     = DATE

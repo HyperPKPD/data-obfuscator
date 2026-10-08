@@ -1,0 +1,56 @@
+DATA OBFUSCATOR — TOKEN REPORT
+==============================
+Tokenizer: Primary: cl100k_base pretokenization + BPE-length model (GPT-4 family); other models estimated below
+Special tokens: not counted (raw file content, no BOS/EOS)
+
+FILE                                BYTES       TOKENS
+------------------------------------------------------
+INPUT
+  sample.csv                        27894        12276
+
+OUTPUT DATASET
+  obfuscated.csv                    14788         7970
+
+OTHER OUTPUT FILES (excluding log)
+  column_report.txt                  2265          500
+  config.used.txt                     780          202
+  keymap.txt                         2193          750
+  llm.txt                           10325         2501
+  summary.txt                        1852          519
+  tokens.txt                         3041          755
+
+EXCLUDED (log / not counted in totals)
+  obfuscator.log                     5661         1658
+
+------------------------------------------------------
+TOTAL INPUT                         27894        12276
+TOTAL OUTPUT DATASET                14788         7970
+TOTAL OTHER FILES                   20456         5227
+TOTAL ALL COUNTED                   63138        25473
+
+MULTI-MODEL ESTIMATES (approximate - same files, other tokenizers)
+MODEL                                                   INPUT   OUT DATA      OTHER ALL COUNTED
+-----------------------------------------------------------------------------------------------
+GPT-4 / GPT-3.5 (cl100k_base)                           12276       7970       5227       25473
+GPT-4o / GPT-4.1 / o-series / GPT-5 (o200k_base)        12274       7970       5086       25330
+Claude 3 and later (Anthropic)                          12405       7970       5617       25992
+Gemini (Google)                                         14636       8885       5349       28870
+Llama 3 / 3.1 / 3.3 (Meta)                              12276       7970       5227       25473
+Qwen 2 / 2.5 / 3 (Alibaba)                              16266      11770       5765       33801
+Mistral 7B / Mixtral / Llama 2 (32k vocab)              19457      12689       7339       39485
+
+Notes:
+- Shared pretokenization follows the published cl100k_base regex rules
+  (contractions, letter runs, 1-3 digit groups, punctuation, newlines);
+  each model family is then scored with its own profile.
+- Digit handling dominates numeric CSV files. GPT-4/4o, Llama 3, Claude 3+
+  and Gemini group digits (up to 3 per token); Qwen, Mistral 7B and
+  Llama 2 spend one token per digit, so expect noticeably higher counts.
+  The grouped-digit families therefore land close together on a dataset;
+  they diverge more on prose such as llm.txt and summary.txt.
+- Treat every figure as an estimate (typically within about +-10-25 %).
+  For exact numbers use the provider's counter: tiktoken (OpenAI), the
+  count_tokens endpoint (Anthropic), countTokens (Gemini), or the model's
+  Hugging Face tokenizer (Llama, Qwen, Mistral).
+- No BOS/EOS special tokens are added (file content, not a chat turn).
+- The log file is excluded from totals as specified.

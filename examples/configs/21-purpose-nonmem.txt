@@ -1,0 +1,36 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.2  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 21-purpose-nonmem
+#  Purpose     : Generate a NONMEM control stream: a numeric-only
+#              : dataset NONMEM can read directly.
+#  Masking     : Level 2. Keeps only numeric modelling columns; text
+#              : columns (USUBJID, STUDYID, SITEID, ARM, RACE, DATE
+#              : ...) are dropped. SEX becomes 0/1, IDs become 1..N.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/21-purpose-nonmem.txt
+#  Next step   : Paste prompt 2 (CREATE A NONMEM CONTROL STREAM) from
+#              : llm.txt. In NONMEM use $DATA obfuscated.csv IGNORE=@.
+#  Note        : NONMEM cannot read text values; if you need a
+#              : treatment-group covariate, recode ARM to a number
+#              : first.
+#  Note        : Add RATE, ADDL, II or SS to keep if your dataset has
+#              : them.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/purpose-nonmem
+level  = 2
+seed   = 42
+id_style = sequential
+keep   = ID, TIME, TAD, AMT, DV, EVID, MDV, CMT, WT, AGE, SEX

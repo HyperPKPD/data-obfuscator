@@ -1,0 +1,39 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.4  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 25-purpose-external-share
+#  Purpose     : Send a dataset outside your organisation (CRO, vendor,
+#              : collaborator) with the strongest masking.
+#  Masking     : Level 4 with a fresh random seed each run, a wide
+#              : date-shift window, free text dropped, only the columns
+#              : needed for modelling.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/25-purpose-external-share.txt
+#  Next step   : Share only obfuscated.csv (and llm.txt if useful).
+#              : NEVER share summary.txt, config.used.txt,
+#              : obfuscator.log or keymap.txt: they reveal the seed or
+#              : the original names.
+#  Note        : Because the seed is random, note it from summary.txt
+#              : if you may need to reproduce this exact masking later.
+#  Note        : Replace the keep list with the columns your recipient
+#              : actually needs.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/purpose-external-share
+level  = 4
+seed   = auto
+id_style = padded
+date_shift_days = 365-1460
+write_keymap = false            # keymap.txt is written by default; not wanted for a hand-off
+keep   = ID, TIME, TAD, AMT, DV, EVID, MDV, CMT, WT, AGE, SEX

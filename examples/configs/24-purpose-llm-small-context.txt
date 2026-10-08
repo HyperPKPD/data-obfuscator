@@ -1,0 +1,34 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.2  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 24-purpose-llm-small-context
+#  Purpose     : Fit a long dataset into a small LLM context window by
+#              : keeping only the core columns.
+#  Masking     : Level 2. Only the seven core NONMEM columns are kept,
+#              : which cuts the token count sharply.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/24-purpose-llm-small-context.txt
+#  Next step   : Run: data-obfuscator tokens --input
+#              : examples/sample.csv --output ./masked/purpose-small-
+#              : context to compare token estimates across models.
+#  Note        : tokens.txt lists estimates for GPT, Claude, Gemini,
+#              : Llama, Qwen and Mistral; models that spend one token
+#              : per digit cost the most.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/purpose-small-context
+level  = 2
+seed   = 42
+id_style = sequential
+keep   = ID, TIME, AMT, DV, EVID, MDV, CMT

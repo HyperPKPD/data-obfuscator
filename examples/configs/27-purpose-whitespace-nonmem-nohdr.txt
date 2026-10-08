@@ -1,0 +1,37 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.2  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 27-purpose-whitespace-nonmem-nohdr
+#  Purpose     : Mask a classic NONMEM .dat file: whitespace-delimited
+#              : with no header row.
+#  Masking     : Level 2. The header names are supplied here because
+#              : the file has none; the output keeps the whitespace
+#              : layout and gets a header row.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/27-purpose-whitespace-nonmem-
+#              : nohdr.txt
+#  Next step   : Paste prompt 2 (CREATE A NONMEM CONTROL STREAM) from
+#              : llm.txt.
+#  Note        : examples/sample_nonmem.dat is a small file in this
+#              : format.
+#  Note        : Make sure the columns list matches the file's column
+#              : order exactly.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample_nonmem.dat
+output = ./masked/purpose-whitespace-nohdr
+level  = 2
+seed   = 42
+delimiter = space
+no_header = true
+columns   = ID, TIME, AMT, DV, EVID, MDV, CMT, WT, AGE, SEX

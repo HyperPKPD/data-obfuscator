@@ -1,0 +1,37 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.4  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 26-purpose-reproducible-audit
+#  Purpose     : Internal audit trail: the same command gives the same
+#              : masked dataset every time.
+#  Masking     : Level 2, fixed seed, padded IDs, key map written so
+#              : results can be mapped back internally, verbose log.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/26-purpose-reproducible-audit.txt
+#  Next step   : Run it twice and compare the SHA-256 line in
+#              : summary.txt: it is identical when the input, options,
+#              : seed and program version are the same.
+#  Note        : keymap.txt reverses the masking. Keep it offline and
+#              : never share it.
+#  Note        : The run log records the program version; keep it with
+#              : the results.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/purpose-audit
+level  = 2
+seed   = 20261008
+id_style = padded
+write_keymap = true             # the default; keymap.txt also records scaling factors and the date shift
+verbose = true
+output_name = masked_dataset.csv

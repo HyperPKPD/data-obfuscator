@@ -1,0 +1,42 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.4  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 31-qc-many-errors
+#  Purpose     : Quality-check the error-ridden example dataset
+#              : (qc_many_errors.csv). The planted problems must
+#              : survive masking so they can still be found.
+#  Masking     : Same as 30: level 2, no scaling, DATE shifted, PK/PD
+#              : core and covariates exact. Rows with a wrong field
+#              : count keep their shape in the masked file.
+#  Run it      : data-obfuscator run --config examples/configs/31-qc-
+#              : many-errors.txt
+#  Next step   : Paste prompt 3 from llm.txt with obfuscated.csv; the
+#              : answer key lists every planted problem with its line
+#              : number (line numbers are unchanged by masking).
+#  Note        : Expected run: 2 warnings - 4 dates in DD/MM/YYYY
+#              : format stay unshifted (they are the real dates) and 2
+#              : rows have the wrong number of fields.
+#  Note        : The text value M in SEX is recoded together with the
+#              : other SEX labels, so in the masked file it shows up as
+#              : a code outside 0/1 instead of the letter M.
+#  Note        : Do not share the masked file externally until the
+#              : unshifted-date warning is resolved (fix those four
+#              : dates or drop DATE).
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option and examples/README.md
+#              : for the example datasets. Command line flags override
+#              : anything set here.
+# ========================================================================
+
+input  = examples/datasets/qc_many_errors.csv
+output = ./masked/qc-many-errors
+level  = 2
+seed   = 42
+date_columns = DATE

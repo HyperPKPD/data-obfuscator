@@ -1,0 +1,55 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.4  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 33-pooled-multi-column-roles
+#  Purpose     : Pooled oral PK from three studies with SEVERAL columns
+#              : per role (pk_oral_pooled_multi_id.csv): the showcase
+#              : for multi-column role options.
+#  Masking     : Level 3: labels recoded, dates shifted, and every
+#              : valid number in the covariate columns multiplied or
+#              : divided by one hidden random factor (1-20) per column.
+#              : Columns that describe the same thing share ONE masked
+#              : label: STU = STUDYID = STUDY = PROTNAME, USUBJID =
+#              : SUBJID, SITEID = SITENAME, ARM = ARMCD.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/33-pooled-multi-column-roles.txt
+#  Next step   : Open column_report.txt to see each column's role, then
+#              : paste prompt 1 (ANALYZE THE DATA) from llm.txt.
+#  Note        : Expected run: no warnings. Without the study_column /
+#              : site_column lines below, PROTNAME and SITENAME would
+#              : be passed through unmasked and the run would warn
+#              : about them.
+#  Note        : Role options accept several names: comma, semicolon or
+#              : pipe separated, or repeat the key on separate lines.
+#  Note        : Columns of one role are aligned when their values pair
+#              : one-to-one row by row; if they do not, each column
+#              : gets its own labels (see the log).
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option and examples/README.md
+#              : for the example datasets. Command line flags override
+#              : anything set here.
+# ========================================================================
+
+input  = examples/datasets/pk_oral_pooled_multi_id.csv
+output = ./masked/pooled-multi-column
+level  = 3
+seed   = 2024
+
+# --- several columns per role -------------------------------------------
+id_column        = ID
+subject_column   = USUBJID, SUBJID
+study_column     = STU, STUDYID, STUDY, PROTNAME
+site_column      = SITEID, SITENAME
+treatment_column = ARM, ARMCD
+user_column      = INVESTIGATOR
+
+# --- everything else -----------------------------------------------------
+date_columns     = DATE
+freetext_columns = COMMENT

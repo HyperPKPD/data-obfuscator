@@ -1,0 +1,35 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.4  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 13-level4-maximum
+#  Purpose     : Level 4: strongest masking built in.
+#  Masking     : Level 3 numeric scaling (covariates multiplied or
+#              : divided by a hidden factor between 1 and 20), free-
+#              : text columns dropped, rows sorted by masked ID. Fixed
+#              : seed so the run is repeatable; switch to seed = auto
+#              : for a different masking every run.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/13-level4-maximum.txt
+#  Next step   : Use prompt 1 (analysis) from llm.txt; covariates are
+#              : approximate by design.
+#  Note        : With seed = auto, keep summary.txt (it records the
+#              : seed) so the run can be reproduced later; never share
+#              : summary.txt.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/level4-maximum
+level  = 4
+seed   = 20261008
+id_style = padded
+date_shift_days = 365-1460

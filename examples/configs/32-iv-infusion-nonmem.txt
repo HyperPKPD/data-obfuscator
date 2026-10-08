@@ -1,0 +1,34 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.3  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 32-iv-infusion-nonmem
+#  Purpose     : Generate a NONMEM control stream for the IV infusion
+#              : dataset (pk_iv_infusion_addl_ss.csv): RATE, ADDL/II
+#              : and steady-state (SS) records.
+#  Masking     : Level 2. RATE, AMT, ADDL, II, SS, EVID, MDV, CMT,
+#              : TIME, TAD and DV are never altered, so the dosing
+#              : logic the LLM sees is the real one.
+#  Run it      : data-obfuscator run --config examples/configs/32-iv-
+#              : infusion-nonmem.txt
+#  Next step   : Paste prompt 2 (CREATE A NONMEM CONTROL STREAM) from
+#              : llm.txt with obfuscated.csv.
+#  Note        : Expected run: no warnings.
+#  Note        : COHORT is recognised as a treatment column and
+#              : relabelled; the dose is still visible in AMT.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option and examples/README.md
+#              : for the example datasets. Command line flags override
+#              : anything set here.
+# ========================================================================
+
+input  = examples/datasets/pk_iv_infusion_addl_ss.csv
+output = ./masked/iv-infusion
+level  = 2
+seed   = 42

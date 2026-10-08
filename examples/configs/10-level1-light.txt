@@ -1,0 +1,34 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.2  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 10-level1-light
+#  Purpose     : Level 1: hide direct identifiers only. Fastest, least
+#              : masking.
+#  Masking     : Recodes ID, USUBJID, STUDYID, SITEID and the
+#              : investigator. Dates are NOT shifted, free text is NOT
+#              : removed, treatment / sex / race / country labels are
+#              : NOT recoded.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/10-level1-light.txt
+#  Next step   : Paste a prompt from llm.txt; review the warnings
+#              : printed by the run first.
+#  Note        : Use only when dates, comments and e-mail-like columns
+#              : are absent or harmless. You get a warning for any kept
+#              : date column.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/level1-light
+level  = 1
+seed   = 42
+id_style = sequential

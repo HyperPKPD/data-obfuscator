@@ -1,0 +1,50 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.6  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 36-rename-all-except
+#  Purpose     : Rename almost every column for a hand-off, but keep the
+#              : NONMEM columns and a few covariates readable. Listing
+#              : what to KEEP is shorter than listing what to rename.
+#  Masking     : Level 2. rename_except names the columns that keep their
+#              : name (ID, TIME, TAD, EVID, MDV, CMT, AMT, DV, WT, AGE,
+#              : SEX); every other column is renamed to COLnn.
+#  Run it      : data-obfuscator run --config examples/configs/36-rename-all-except.txt
+#  Next step   : Paste llm.txt prompt 1; it lists the renamed columns as
+#              : unlabelled variables the model should ask about.
+#  Note        : Expected run: no warnings. Every renamed column is
+#              : listed in the "COLUMN RENAMING" section of keymap.txt
+#              : (original name -> new name); keep keymap.txt private.
+#  Note        : Renaming changes column NAMES only, never the values.
+#              : column_report.txt and summary.txt list the ORIGINAL
+#              : names, so do not share them either.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option and examples/README.md
+#              : for the example datasets. Command line flags override
+#              : anything set here.
+# ========================================================================
+
+input  = examples/datasets/pk_oral_pooled_multi_id.csv
+output = ./masked/rename-all-except
+level  = 2
+seed   = 2024
+
+id_column        = ID
+subject_column   = USUBJID, SUBJID
+study_column     = STU, STUDYID, STUDY, PROTNAME
+site_column      = SITEID, SITENAME
+treatment_column = ARM, ARMCD
+user_column      = INVESTIGATOR
+date_columns     = DATE
+freetext_columns = COMMENT
+
+# --- renaming -------------------------------------------------------------
+# Rename everything EXCEPT these columns (use this when most columns are renamed).
+rename_except = ID, TIME, TAD, EVID, MDV, CMT, AMT, DV, WT, AGE, SEX
+rename_prefix = VAR              # automatic names: VAR02, VAR03, ...

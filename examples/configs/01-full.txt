@@ -1,0 +1,79 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.6  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 01-full
+#  Purpose     : Every available option, shown with its default or a
+#              : typical value. Copy it and delete what you do not
+#              : need.
+#  Masking     : Level 2 (clinical); all columns kept except
+#              : INVESTIGATOR.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/01-full.txt
+#  Next step   : Check column_report.txt to confirm each column got the
+#              : role you expected.
+#  Note        : Lines that are commented out (# key = value) show
+#              : options that are off by default.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+# ---- required ------------------------------------------------------------
+input  = examples/sample.csv      # dataset to mask (relative paths = current directory)
+output = ./masked/full                 # folder for all results (created if missing)
+
+# ---- how much to mask ----------------------------------------------------
+level = 2                         # 1|2|3|4 or light|clinical|covariate|maximum (default 2)
+seed = 42                         # integer, or "auto" for a fresh random seed (default 42)
+id_style = sequential             # sequential | padded | hashed (default sequential)
+write_keymap = true               # default true: keymap.txt (original -> masked, scaling factors, date shift). false or 0 = off. Never share it!
+overwrite = false                 # default false: stop if the output folder already holds files; true = replace them
+
+# ---- which columns to keep ----------------------------------------------
+# keep = ID, TIME, AMT, DV         # default: all columns. Output follows this order.
+drop = INVESTIGATOR               # columns to remove (wins over keep)
+
+# ---- tell the tool which column is which (default: auto-detect by name) ---
+# Each role takes one OR several names, e.g. study_column = STU, STUDYID, STUDY
+id_column        = ID
+subject_column   = USUBJID
+study_column     = STUDYID
+site_column      = SITEID
+treatment_column = ARM
+user_column      = INVESTIGATOR
+date_columns     = DATE
+
+# ---- extra columns to treat specially -------------------------------------
+sensitive        = SUBJINIT       # extra identifier columns to recode like USUBJID
+freetext_columns = COMMENT, EMAIL # redacted at level >= 2, dropped at level 4
+scale_columns    = WT, AGE        # multiplied or divided by a hidden factor at level >= 3 (covariates already are)
+protect          = TIME, TAD, DV, LNDV, AMT, RATE, EVID, MDV, CMT, ADDL, II, SS   # never altered (replaces the built-in list)
+
+# ---- rename columns (off by default; use ONE of the two) ------------------------
+# rename_columns = PROTNAME, SITENAME, WT=BODYSIZE   # columns to rename: NAME = automatic name, OLD=NEW = your name
+# rename_except  = ID, TIME, DV, AMT, EVID, MDV, CMT # OR: rename every column except these
+# rename_prefix  = COL                               # prefix of automatic names (COL07, COL09, ...)
+
+# ---- numbers and dates -----------------------------------------------------
+scale_range = 1-20                # MIN-MAX of the random factor covariates are multiplied or divided by (level >= 3)
+date_shift_days = 1-100           # MIN-MAX days (decimals ok): one random decimal such as 23.6 is drawn; ONE number (23.6) fixes it
+# date_shift_min = 1              # alternative to date_shift_days (config file only)
+# date_shift_max = 100
+
+# ---- reading the file ---------------------------------------------------------
+delimiter = auto                  # auto | comma | tab | semicolon | space
+no_header = false                 # true = first row is data
+# columns = ID, TIME, DV, AMT     # header names to use when there is no header row
+comment_chars = "#;$"             # lines starting with these are skipped (quote it: # starts a comment)
+
+# ---- output ---------------------------------------------------------------------
+# output_name = masked.csv        # default obfuscated.csv / .tsv / .dat
+drop_freetext = false             # true = drop free-text columns instead of redacting (automatic at level 4)
+verbose = false                   # true = extra DEBUG lines in the log

@@ -1,0 +1,32 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.4  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 23-purpose-eda-nca
+#  Purpose     : Exploratory analysis and non-compartmental analysis
+#              : (NCA) with exact concentrations and covariates.
+#  Masking     : Level 2: labels recoded and dates dropped from the
+#              : output; no scaling. Keeps the columns an NCA or
+#              : covariate-exposure exploration needs.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/23-purpose-eda-nca.txt
+#  Next step   : Paste prompt 1 (ANALYZE THE DATA) from llm.txt.
+#  Note        : Concentrations (DV), doses (AMT) and times (TIME, TAD)
+#              : are exact.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/purpose-eda-nca
+level  = 2
+seed   = 42
+id_style = sequential
+keep   = ID, TIME, TAD, AMT, DV, EVID, MDV, CMT, ARM, WT, AGE, SEX, RACE, COUNTRY

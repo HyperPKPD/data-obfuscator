@@ -1,0 +1,40 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.2  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 22-purpose-mrgsolve
+#  Purpose     : Generate an mrgsolve model and simulation code from
+#              : the data design.
+#  Masking     : Level 2. Numeric-only modelling columns, exact dosing
+#              : and observation records, IDs 1..N.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/22-purpose-mrgsolve.txt
+#  Next step   : Ask the LLM: 'Using this dataset, write an mrgsolve
+#              : model and a simulation that reproduces the dosing
+#              : events (ID, time, amt, evid, cmt) and the observed
+#              : design.' Paste the dataset with it.
+#  Note        : This tool keeps your column names exactly as they are.
+#              : mrgsolve data sets use ID, time, amt, evid, cmt (plus
+#              : rate, ii, addl, ss when needed), so rename in R if
+#              : your file uses upper case, for example
+#              : dplyr::rename(time = TIME, amt = AMT, evid = EVID, cmt
+#              : = CMT).
+#  Note        : Add RATE, ADDL, II or SS to keep if your dataset has
+#              : them.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/purpose-mrgsolve
+level  = 2
+seed   = 42
+id_style = sequential
+keep   = ID, TIME, AMT, EVID, CMT, DV, MDV, WT, AGE, SEX

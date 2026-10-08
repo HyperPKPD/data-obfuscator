@@ -1,0 +1,39 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.4  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 30-qc-nearly-clean
+#  Purpose     : Quality-check the nearly clean example dataset
+#              : (qc_nearly_clean.csv): it should read into NONMEM,
+#              : with a handful of items to query.
+#  Masking     : Level 2: IDs, study, site and arm labels recoded; DATE
+#              : shifted by one offset so DATE + CLOCK still reproduces
+#              : TIME. TIME, NTIM, TAD, EVID, MDV, CMT, AMT, DOSE, DV
+#              : and all covariates are exact.
+#  Run it      : data-obfuscator run --config examples/configs/30-qc-
+#              : nearly-clean.txt
+#  Next step   : Paste prompt 3 (PERFORM QUALITY CONTROL CHECKS) from
+#              : llm.txt together with obfuscated.csv, then compare the
+#              : answer with examples/datasets/qc_answer_key.md.
+#  Note        : Expected run: no warnings. keymap.txt is written by
+#              : default.
+#  Note        : keymap.txt lets you translate a finding about ID 0007
+#              : back to the real subject. It must stay on your
+#              : computer.
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option and examples/README.md
+#              : for the example datasets. Command line flags override
+#              : anything set here.
+# ========================================================================
+
+input  = examples/datasets/qc_nearly_clean.csv
+output = ./masked/qc-nearly-clean
+level  = 2
+seed   = 42
+date_columns = DATE

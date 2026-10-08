@@ -1,0 +1,27 @@
+# ========================================================================
+#  DATA OBFUSCATOR - configuration file
+# ========================================================================
+#  Program     : data-obfuscator
+#  Version     : 0.0.0.2  (program version this file was written for)
+#  Author      : Obinna Obianom
+#  Date        : 2026-10-08
+#  Config      : 00-minimal
+#  Purpose     : The smallest possible config: just where the data is
+#              : and where results go.
+#  Masking     : Level 2 (clinical) with every default.
+#  Run it      : data-obfuscator run --config
+#              : examples/configs/00-minimal.txt
+#  Next step   : Open the output folder's llm.txt and paste the prompt
+#              : you need together with obfuscated.csv.
+#  Note        : Everything not set here uses its default (level 2,
+#              : seed 42, sequential IDs, all columns kept).
+#  Parser      : Every line starting with # (or //) is a comment and is
+#              : ignored by the options parser, including this whole
+#              : header. Paths are relative to the folder you run the
+#              : command from.
+#  Docs        : See CONFIGS.md for every option. Command line flags
+#              : override anything set here.
+# ========================================================================
+
+input  = examples/sample.csv
+output = ./masked/minimal

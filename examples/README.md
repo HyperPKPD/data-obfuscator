@@ -24,42 +24,6 @@ data-quality (QC) test sets.
 
 ---
 
-## 0. Before you start
-
-Build once from the project folder:
-
-```
-cargo build --release
-```
-
-The program is then `target\release\data-obfuscator.exe` (Windows) or `target/release/data-obfuscator`
-(Linux/macOS). The commands below say `data-obfuscator`; either put that file on your `PATH`, type its full
-path, or prefix every command with `cargo run --release --` (for example
-`cargo run --release -- run --config examples/configs/30-qc-nearly-clean.txt`).
-
-**Run every command from the project folder** (the folder that contains `Cargo.toml`). Paths in the config
-files are relative to it. Results are written to `./masked/<name>/`.
-
-**Running an example twice:** if the output folder already holds files, the program stops with an error and
-writes nothing. Add `--overwrite` to the command (or delete the folder) when you re-run, e.g.
-`data-obfuscator run --config examples/configs/30-qc-nearly-clean.txt --overwrite`.
-
-Each run writes: `obfuscated.csv` (or `.tsv`/`.dat`), `llm.txt` (three ready-to-paste prompts built for that
-dataset), `summary.txt`, `column_report.txt`, `tokens.txt`, `config.used.txt`, `obfuscator.log`, and
-`keymap.txt` (on by default; `--write-keymap false` or `0` turns it off). See [`../README.md`](../README.md) and [`../CONFIGS.md`](../CONFIGS.md).
-
-**Smallest possible first run** (everything default, level 2):
-
-```
-data-obfuscator run --input examples/datasets/pk_iv_infusion_addl_ss.csv --output ./masked/first-try
-```
-
-Then open `masked/first-try/column_report.txt` to see what the program decided for each column, and
-`masked/first-try/llm.txt` for the prompts.
-
-> Colours: green = success, orange = warning, red = error. Add `--no-color` to switch them off.
-
----
 
 ## 1. Quality-check datasets
 

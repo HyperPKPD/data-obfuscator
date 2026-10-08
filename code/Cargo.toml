@@ -1,0 +1,28 @@
+[package]
+name = "data-obfuscator"
+# Cargo requires 3-part semver here, so this is only a placeholder.
+# The real 4-part version (starts at 0.0.0.1, auto-bumps on every change) lives in
+# VERSION and is managed by build.rs.
+version = "0.0.1"
+edition = "2021"
+description = "Obfuscate NONMEM-style pharmacometric datasets while preserving PK/PD structure - for Clinical Pharmacology, Pharmacometrics and Data Scientists."
+license = "MIT"
+readme = "README.md"
+keywords = ["pharmacometrics", "nonmem", "privacy", "obfuscation", "nlme"]
+categories = ["command-line-utilities", "science"]
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+clap = { version = "4.5", features = ["derive"] }
+csv = "1.3"
+hex = "0.4"
+rand = "0.8"
+rand_chacha = "0.3"
+sha2 = "0.10"
+thiserror = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "symbols"

@@ -1,4 +1,4 @@
-# Pharmacometrics Data Obfuscator: Using the Release
+# How to easy run the program
 
 A quick, step-by-step guide to running the ready-made program on **Windows** or **Linux**. You do not need to install
 anything, build anything, or be online.

@@ -14,6 +14,8 @@ Built for **Clinical Pharmacology, Pharmacometrics and Data Science** work.
 
 ### The ready to use program is available in the [Program Subfolder](program/) while the full code is in [Code Subfolder](code/), and examples with how to run them are in [examples Subfolder](examples/)
 
+### Official web demo is here [View demo](https://hyperpkpd.com/data-obfuscator)
+
 ### Comprehensive documentation is here [View documentation](https://hyperpkpd.com/data-obfuscator/docs/)
 ---
 

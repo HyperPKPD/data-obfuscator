@@ -18,47 +18,6 @@ Built for **Clinical Pharmacology, Pharmacometrics and Data Science** work.
 
 ## Flowchart
 
-```mermaid
-flowchart LR
-    A["<b>pk_study.csv</b><br/>real identifiers,<br/>real dates,<br/>real covariates"]
-    B(["<b>data-obfuscator run</b>"])
-    A --> B
-
-    subgraph SHARE["Share with the LLM or collaborator"]
-        direction TB
-        S1["<b>obfuscated.csv</b><br/>the masked dataset"]
-        S2["<b>llm.txt</b><br/>prompts built for this dataset"]
-    end
-
-    subgraph INFO["For you"]
-        direction TB
-        T1["<b>tokens.txt</b><br/>size for GPT, Claude, Gemini ..."]
-    end
-
-    subgraph PRIVATE["Keep private"]
-        direction TB
-        P1["<b>keymap.txt</b>, <b>keymap_columns.txt</b> (level 4)<br/>the key: how to undo the masking"]
-        P2["summary.txt, column_report.txt,<br/>config.used.txt, obfuscator.log"]
-    end
-
-    B --> SHARE
-    B --> INFO
-    B --> PRIVATE
-
-    classDef src fill:#eef2ff,stroke:#4f46e5,color:#1e1b4b
-    classDef tool fill:#fef3c7,stroke:#d97706,color:#451a03
-    classDef ok fill:#dcfce7,stroke:#16a34a,color:#052e16
-    classDef neutral fill:#e5e7eb,stroke:#6b7280,color:#111827
-    classDef secret fill:#fee2e2,stroke:#dc2626,color:#450a0a
-    class A src
-    class B tool
-    class S1,S2 ok
-    class T1 neutral
-    class P1,P2 secret
-    style SHARE fill:#f0fdf4,stroke:#16a34a,stroke-dasharray: 4 3,color:#14532d
-    style INFO fill:#f3f4f6,stroke:#6b7280,stroke-dasharray: 4 3,color:#1f2937
-    style PRIVATE fill:#fef2f2,stroke:#dc2626,stroke-dasharray: 4 3,color:#7f1d1d
-```
 
 ---
 

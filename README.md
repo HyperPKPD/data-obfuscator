@@ -1,7 +1,7 @@
 # Data Obfuscator
 
 **Real data should not be shared with LLM not hosted in your organization. Mask one or more dataset so it can be shown to an LLM or a collaborator, without
-breaking the PK/PD structure that makes the data worth analysing.**
+breaking the PK/PD structure that makes the data worth analyzing.**
 
 `data-obfuscator` is a single, offline command-line program written in Rust. It recodes identifiers, shifts
 dates, rescales observations or covariates and (optionally) renames columns, while leaving doses, times and event

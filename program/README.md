@@ -11,26 +11,7 @@ values stay with you. It can also put the real values back afterwards.
 
 ---
 
-## Contents
 
-1. [What is in the folder](#1-what-is-in-the-folder)
-2. [Set up on Windows](#2-set-up-on-windows)
-3. [Set up on Linux](#3-set-up-on-linux)
-4. [Make a practice dataset](#4-make-a-practice-dataset)
-5. [Your first run](#5-your-first-run)
-6. [The four masking levels, with examples](#6-the-four-masking-levels-with-examples)
-7. [The commands: run, tokens, reverse, run2](#7-the-commands)
-8. [Handy options for run](#8-handy-options-for-run)
-9. [Options files](#9-options-files)
-10. [Count tokens: tokens](#10-count-tokens-tokens)
-11. [Undo the masking: reverse](#11-undo-the-masking-reverse)
-12. [Mask several datasets together: run2](#12-mask-several-datasets-together-run2)
-13. [Cheat sheet](#13-cheat-sheet)
-14. [If something goes wrong](#14-if-something-goes-wrong)
-15. [Keep it safe](#15-keep-it-safe)
-16. [Author, license and citation](#16-author-license-and-citation)
-
----
 
 ## 1. What is in the folder
 

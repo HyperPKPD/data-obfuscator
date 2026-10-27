@@ -66,7 +66,7 @@ pub fn detect_role(name: &str) -> Role {
     ) {
         return Role::Subject;
     }
-    if matches!(n, "STUDY" | "STU" | "STUDYID" | "STUDYN" | "PROTO" | "PROTOCOL" | "STUDYNUM" | "TRIAL") {
+    if matches!(n, "STUDY" | "STU" | "STDY" | "STUDYID" | "STUDYN" | "PROTO" | "PROTOCOL" | "STUDYNUM" | "TRIAL") {
         return Role::Study;
     }
     if matches!(n, "SITE" | "SITEID" | "CENTER" | "CENTRE" | "CENTERNO" | "SITEIDN") {

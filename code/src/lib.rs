@@ -8,6 +8,8 @@ pub mod dataset;
 pub mod detect;
 pub mod obfuscate;
 pub mod rename;
+pub mod reverse;
+pub mod run2;
 pub mod summary;
 pub mod tokens;
 pub mod trace;

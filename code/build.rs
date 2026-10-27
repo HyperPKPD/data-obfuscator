@@ -3,7 +3,7 @@
 //! * `VERSION` holds the current version as `MAJOR.MINOR.PATCH.REVISION`
 //!   (it starts at `0.0.0.1`).
 //! * `.version-state` remembers a fingerprint of everything that counts as "the
-//!   program" (src/, tests/, build.rs, Cargo.toml, README.md) and the release date.
+//!   program" (src/, tests/, documentations/, build.rs, Cargo.toml, README.md) and the release date.
 //! * Whenever a build sees that fingerprint has changed, REVISION is incremented,
 //!   `VERSION` and `.version-state` are rewritten, and the new version is baked into
 //!   the binary. Build again without edits and the version stays put.
@@ -27,6 +27,7 @@ fn main() {
     for p in [
         "src",
         "tests",
+        "documentations",
         "build.rs",
         "Cargo.toml",
         "README.md",
@@ -129,7 +130,7 @@ fn fingerprint(root: &Path) -> String {
             files.push(p);
         }
     }
-    for dir in ["src", "tests"] {
+    for dir in ["src", "tests", "documentations"] {
         walk(&root.join(dir), &mut files);
     }
     let mut keyed: Vec<(String, PathBuf)> = files

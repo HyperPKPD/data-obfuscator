@@ -15,6 +15,9 @@ pub struct LlmContext<'a> {
     pub level_name: &'a str,
     /// Columns whose values were multiplied or divided by a hidden constant (absolute values are not real).
     pub scaled: Vec<String>,
+    /// Level 4: each value of a scaled column got its own factor (base +/- 15 %), so values are not even
+    /// proportional to the real ones and a covariate is no longer constant within a subject.
+    pub scale_varies: bool,
     /// New names of columns that were renamed to generic labels (their meaning is withheld).
     pub renamed: Vec<String>,
     /// (model label, estimated tokens of the masked dataset)
@@ -80,6 +83,8 @@ pub struct Profile {
     pub dvid: Vec<(String, usize)>,
     /// Columns rescaled by a hidden factor during masking (set by `render`).
     pub scaled: Vec<String>,
+    /// Level 4 per-value variation of the factor (set by `render`).
+    pub scale_varies: bool,
     /// Columns renamed to generic labels during masking (set by `render`).
     pub renamed: Vec<String>,
     /// Calendar date / clock-time columns that can be used to re-derive TIME.
@@ -488,6 +493,7 @@ impl Profile {
 pub fn render(ds: &Dataset, ctx: &LlmContext) -> String {
     let mut p = profile(ds);
     p.scaled = ctx.scaled.clone();
+    p.scale_varies = ctx.scale_varies;
     p.renamed = ctx.renamed.clone();
     let file = ctx.file_name;
     let mut o = String::new();
@@ -553,8 +559,13 @@ pub fn render(ds: &Dataset, ctx: &LlmContext) -> String {
     }
     if !p.scaled_present().is_empty() {
         o.push_str(&format!(
-            "  Rescaled columns    : {} (each multiplied or divided by a hidden constant; values are not physiological)\n",
-            p.scaled_present().join(", ")
+            "  Rescaled columns    : {} ({}; values are not physiological)\n",
+            p.scaled_present().join(", "),
+            if p.scale_varies {
+                "each value multiplied or divided by its own hidden factor, about +/-15% around a hidden base"
+            } else {
+                "each multiplied or divided by a hidden constant"
+            }
         ));
     }
     if !p.renamed.is_empty() {
@@ -667,14 +678,27 @@ fn analyze_prompt(p: &Profile, file: &str) -> String {
         ". Subject, study and site identifiers, categorical labels and dates have been recoded or shifted, so treat every label as arbitrary and do not try to re-identify anything. ",
     );
     if !p.scaled_present().is_empty() {
-        s.push_str(&format!(
-            "The column{} {} {} each multiplied or divided by a hidden constant factor, so absolute values and units are not physiological: use {} only for ratios, rank order and within-subject constancy, never judge {} against real-world ranges, and do not report them as if they were true weights, ages or lab values. ",
-            if p.scaled_present().len() == 1 { "" } else { "s" },
-            join_and(&p.scaled_present()),
-            if p.scaled_present().len() == 1 { "was" } else { "were" },
-            if p.scaled_present().len() == 1 { "it" } else { "them" },
-            if p.scaled_present().len() == 1 { "it" } else { "them" },
-        ));
+        let one = p.scaled_present().len() == 1;
+        if p.scale_varies {
+            s.push_str(&format!(
+                "The column{} {} {} each multiplied or divided by a hidden factor that differs slightly from value to value (about 15% either way around a hidden base), so absolute values and units are not physiological and {} not exactly proportional to the real ones: use {} only for rough rank order and approximate ratios, expect the values of a subject to differ a little from row to row and do NOT treat that as a data error, never judge {} against real-world ranges, and do not report them as if they were true weights, ages or lab values. ",
+                if one { "" } else { "s" },
+                join_and(&p.scaled_present()),
+                if one { "was" } else { "were" },
+                if one { "it is" } else { "they are" },
+                if one { "it" } else { "them" },
+                if one { "it" } else { "them" },
+            ));
+        } else {
+            s.push_str(&format!(
+                "The column{} {} {} each multiplied or divided by a hidden constant factor, so absolute values and units are not physiological: use {} only for ratios, rank order and within-subject constancy, never judge {} against real-world ranges, and do not report them as if they were true weights, ages or lab values. ",
+                if one { "" } else { "s" },
+                join_and(&p.scaled_present()),
+                if one { "was" } else { "were" },
+                if one { "it" } else { "them" },
+                if one { "it" } else { "them" },
+            ));
+        }
     }
     if !p.renamed.is_empty() {
         s.push_str(&format!(
@@ -815,10 +839,11 @@ fn nonmem_prompt(p: &Profile, file: &str, delim: Delimiter) -> String {
         .cov_cont
         .iter()
         .find(|c| ["WT", "WGT", "WEIGHT", "LBWT"].contains(&upper(c).as_str()));
+    let what = if p.scale_varies { "factor that varies by about 15% from value to value" } else { "constant" };
     if let Some(w) = weight {
         if p.is_scaled(w) {
             s.push_str(&format!(
-                "; apply allometric scaling with {w} (exponents 0.75 on clearances and 1 on volumes) centred on the MEDIAN of {w} in this file, because {w} was multiplied or divided by a hidden constant and a 70 kg reference would be wrong"
+                "; apply allometric scaling with {w} (exponents 0.75 on clearances and 1 on volumes) centred on the MEDIAN of {w} in this file, because {w} was multiplied or divided by a hidden {what} and a 70 kg reference would be wrong"
             ));
         } else {
             s.push_str(&format!(
@@ -855,9 +880,10 @@ fn nonmem_prompt(p: &Profile, file: &str, delim: Delimiter) -> String {
         .collect();
     if !other_scaled.is_empty() {
         s.push_str(&format!(
-            "; {} {} rescaled by hidden constants, so centre every covariate effect on the median of the column and note that the coefficients refer to the rescaled values",
+            "; {} {} rescaled by hidden {}, so centre every covariate effect on the median of the column and note that the coefficients refer to the rescaled values",
             join_and(&other_scaled),
-            if other_scaled.len() == 1 { "was" } else { "were" }
+            if other_scaled.len() == 1 { "was" } else { "were" },
+            if p.scale_varies { "factors that vary by about 15% from value to value" } else { "constants" }
         ));
     }
     s.push_str(&format!(
@@ -953,10 +979,16 @@ fn qc_prompt(p: &Profile, file: &str) -> String {
                 t.push_str("; ");
             }
             t.push_str(&format!(
-                "{} {} multiplied or divided by a hidden constant during masking, so do NOT judge {} against physiological ranges - check only missing values, constancy within a subject and internal consistency",
+                "{} {} multiplied or divided by a hidden {} during masking, so do NOT judge {} against physiological ranges - {}",
                 join_and(&scaled),
                 if scaled.len() == 1 { "was" } else { "were" },
-                if scaled.len() == 1 { "it" } else { "them" }
+                if p.scale_varies { "factor that varies by about 15% from value to value" } else { "constant" },
+                if scaled.len() == 1 { "it" } else { "them" },
+                if p.scale_varies {
+                    "check only missing values and gross errors such as text or negative numbers; small differences between the rows of one subject are expected from the masking and are not a data error"
+                } else {
+                    "check only missing values, constancy within a subject and internal consistency"
+                }
             ));
         }
         s.push_str(&t);
@@ -1030,6 +1062,7 @@ mod tests {
                 level: 2,
                 level_name: "clinical labels",
                 scaled: Vec::new(),
+                scale_varies: false,
                 renamed: Vec::new(),
                 token_estimates: vec![("GPT-4".into(), 123)],
             },

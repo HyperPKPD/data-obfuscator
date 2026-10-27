@@ -1,0 +1,12 @@
+
+╔════════════════════════════════════════════════════════════════════════╗
+║  DATA OBFUSCATOR                                            v0.0.0.23  ║
+║  Mask NONMEM-style datasets - keep the PK/PD structure intact          ║
+║  For Clinical Pharmacology, Pharmacometrics & Data Science             ║
+║  Released 2026-10-14   |   Run 2026-10-14 00:27:03 -04:00              ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+2026-10-14 04:27:03.930 UTC [INFO] log opened path=.\out\obfuscator.log pid=63260 version=0.0.0.23 released=2026-10-14
+2026-10-14 04:27:03.931 UTC [INFO] argv: C:\Users\askph\Desktop\PROJECTS\RUST\data-obfuscator\data-obfuscator\target\release\data-obfuscator.exe --no-color run --input=.\in\sample.csv --output=.\out --level=2 --seed=42
+2026-10-14 04:27:03.932 UTC [INFO] run start input=.\in\sample.csv output=.\out level=2
+2026-10-14 04:27:03.934 UTC [ERROR] opening input .\in\sample.csv: The system cannot find the path specified. (os error 3)

@@ -19,11 +19,15 @@ are never altered.\n\n\
 Intended for Clinical Pharmacology, Pharmacometrics and Data Science work.\n\n\
 Besides the masked dataset, `run` writes llm.txt (ready-to-paste analysis, NONMEM \
 control-stream and QC prompts tailored to the dataset) and tokens.txt (token \
-estimates for GPT, Claude, Gemini, Llama and other models).\n\n\
+estimates for GPT, Claude, Gemini, Llama and other models). The private keymap.txt \
+(and, at level 4, keymap_columns.txt) lets `reverse` turn a masked dataset back into the \
+original.\n\n\
 Examples:\n  \
 data-obfuscator run --input pk.csv --output ./masked --level 2\n  \
 data-obfuscator run --config study_options.txt\n  \
-data-obfuscator tokens --input pk.csv --output ./masked"
+data-obfuscator tokens --input pk.csv --output ./masked\n  \
+data-obfuscator reverse --input masked/obfuscated.csv --output ./restored\n  \
+data-obfuscator run2 --input adsl.csv --input adpc.csv --input adlb.csv --output ./masked2"
 )]
 pub struct Cli {
     /// Print the version banner (what the program does and who it is for)
@@ -44,6 +48,84 @@ pub enum Commands {
     Run(RunArgs),
     /// Estimate token counts (GPT, Claude, Gemini, Llama, ...) for a file and an output directory
     Tokens(TokensArgs),
+    /// Undo the masking of a dataset with keymap.txt (and keymap_columns.txt for level 4), or of the NONMEM-style
+    /// dataset built from `run2` datasets with keymap2.txt
+    Reverse(ReverseArgs),
+    /// Mask SEVERAL related datasets together (for example ADaM ADSL, ADPC, ADLB) so an LLM can combine them into
+    /// a NONMEM-style master dataset; writes keymap2.txt so `reverse` can put the real values back
+    Run2(crate::run2::Run2Args),
+}
+
+#[derive(clap::Args, Debug, Clone)]
+pub struct ReverseArgs {
+    /// The masked dataset to restore. Rows and columns may be in any order, and extra columns are allowed
+    #[arg(short, long, value_name = "FILE")]
+    pub input: Option<PathBuf>,
+
+    /// keymap.txt written by `run` (default: keymap.txt in the folder of the input)
+    #[arg(short, long, value_name = "FILE")]
+    pub keymap: Option<PathBuf>,
+
+    /// keymap_columns.txt written by `run` at level 4 (default: keymap_columns.txt next to keymap.txt, if it exists)
+    #[arg(long, value_name = "FILE")]
+    pub keymap_columns: Option<PathBuf>,
+
+    /// Output folder for the restored dataset, reverse_report.txt and reverse.log (default ./restored)
+    #[arg(short, long, value_name = "DIR")]
+    pub output: Option<PathBuf>,
+
+    /// Name of the restored dataset (default restored.csv / .tsv / .dat)
+    #[arg(long, value_name = "NAME")]
+    pub output_name: Option<String>,
+
+    /// Allow writing into an output folder that already contains files (they may be replaced)
+    #[arg(long, default_value_t = false)]
+    pub overwrite: bool,
+
+    /// Undo only these parts: rename, scaling, dates, recoding (comma-separated). Default: all
+    #[arg(long, value_name = "STEPS")]
+    pub only: Option<String>,
+
+    /// Do not undo these parts: rename, scaling, dates, recoding (comma-separated)
+    #[arg(long, value_name = "STEPS")]
+    pub skip: Option<String>,
+
+    /// Stop with an error instead of approximating, skipping a missing column or leaving unknown values unchanged
+    #[arg(long, default_value_t = false)]
+    pub strict: bool,
+
+    /// Keep the input's column and row order instead of restoring the original order
+    #[arg(long, default_value_t = false)]
+    pub keep_order: bool,
+
+    /// Field delimiter of the input: auto, comma, tab, space, semicolon
+    #[arg(long)]
+    pub delimiter: Option<String>,
+
+    /// First row is data, not a header
+    #[arg(long, default_value_t = false)]
+    pub no_header: bool,
+
+    /// Header names when --no-header, comma-separated
+    #[arg(long, value_name = "COLS")]
+    pub columns: Option<String>,
+
+    /// Leading comment characters (default #;$)
+    #[arg(long)]
+    pub comment_chars: Option<String>,
+
+    /// Verbose debug lines in the log
+    #[arg(short, long, default_value_t = false)]
+    pub verbose: bool,
+
+    /// keymap2.txt only (datasets masked by `run2`): which source column a column of the combined dataset came
+    /// from, COMBINED=SOURCE (ID=USUBJID, DV=AVAL) or COMBINED=SOURCE:WHENCOL=VALUE (DV=PCSTRESN:DVID=1). Repeatable
+    #[arg(long, value_name = "RULE", action = clap::ArgAction::Append, allow_hyphen_values = true)]
+    pub map: Vec<String>,
+
+    /// keymap2.txt only: extra columns of the combined dataset that hold shifted dates, comma-separated
+    #[arg(long, value_name = "COLS")]
+    pub date_columns: Option<String>,
 }
 
 #[derive(clap::Args, Debug, Clone)]
@@ -369,6 +451,66 @@ pub fn resolve_run(args: &RunArgs) -> Result<RunOptions> {
 
 /// Stops the run before anything is written if the output folder already holds files and the
 /// user did not pass `--overwrite`. Returns how many entries already exist there.
+pub fn resolve_reverse(args: &ReverseArgs) -> Result<crate::reverse::ReverseOptions> {
+    use crate::reverse::{ReverseOptions, Step};
+    let mut o = ReverseOptions::default();
+    match &args.input {
+        Some(p) => o.input = p.clone(),
+        None => bail!("--input is required: the masked dataset to restore"),
+    }
+    o.keymap = args.keymap.clone();
+    o.keymap_columns = args.keymap_columns.clone();
+    if let Some(p) = &args.output {
+        o.output_dir = p.clone();
+    }
+    o.output_name = args.output_name.clone();
+    o.overwrite = args.overwrite;
+    o.strict = args.strict;
+    o.restore_order = !args.keep_order;
+    o.verbose = args.verbose;
+    o.map = args.map.clone();
+    if let Some(d) = &args.date_columns {
+        o.date_columns = split_list(d);
+    }
+    o.no_header = args.no_header;
+    if let Some(c) = &args.columns {
+        o.columns = split_list(c);
+    }
+    if let Some(c) = &args.comment_chars {
+        o.comment_chars = c.clone();
+    }
+    if let Some(d) = &args.delimiter {
+        o.delimiter = match d.trim().to_ascii_lowercase().as_str() {
+            "auto" | "" => None,
+            "comma" | "csv" | "," => Some(','),
+            "tab" | "tsv" | "\\t" => Some('\t'),
+            "space" | "whitespace" | "nm" | "nonmem" => Some(' '),
+            "semicolon" | ";" => Some(';'),
+            other if other.chars().count() == 1 => other.chars().next(),
+            other => bail!("unknown delimiter '{other}'"),
+        };
+    }
+    let parse_steps = |s: &str| -> Result<Vec<Step>> { split_list(s).iter().map(|x| Step::parse(x)).collect() };
+    match (&args.only, &args.skip) {
+        (Some(_), Some(_)) => bail!("use either --only or --skip, not both"),
+        (Some(s), None) => {
+            o.steps = parse_steps(s)?;
+            if o.steps.is_empty() {
+                bail!("--only needs at least one of: rename, scaling, dates, recoding");
+            }
+        }
+        (None, Some(s)) => {
+            let skip = parse_steps(s)?;
+            o.steps = Step::ALL.iter().copied().filter(|st| !skip.contains(st)).collect();
+            if o.steps.is_empty() {
+                bail!("--skip lists every step: nothing would be undone");
+            }
+        }
+        (None, None) => {}
+    }
+    Ok(o)
+}
+
 pub fn check_output_dir(opts: &RunOptions) -> Result<usize> {
     let dir = &opts.output_dir;
     if !dir.exists() {

@@ -27,14 +27,49 @@ pub struct RunArtifacts {
     pub llm_path: PathBuf,
     pub warnings: usize,
     pub keymap_path: Option<PathBuf>,
+    /// Level 4 only: keymap_columns.txt, the per-value factors needed to restore scaled columns exactly.
+    pub keymap_columns_path: Option<PathBuf>,
     pub dataset: Dataset,
     pub summary: Summary,
     pub token_report: TokenReport,
 }
 
+/// Level 4: every numeric cell of a scaled column gets its own factor, the column's base factor
+/// plus or minus this fraction (uniform), so a value no longer shares one exact factor with its column.
+pub const LEVEL4_SPREAD: f64 = 0.15;
+
 pub type Masked = (Dataset, Vec<KeyRow>, Vec<ColumnPlan>, f64, Vec<ScaleRow>);
 
+/// Level 4: the factor every scaled cell of every row received, recorded so that `reverse` can undo
+/// the per-value variation exactly. Written to keymap_columns.txt.
+#[derive(Clone, Debug)]
+pub struct PerValue {
+    /// Indices (in the INPUT dataset) of the columns that identify a row: IDs, subject IDs, study columns, TIME, DVID, EVID, CMT.
+    pub key_cols: Vec<usize>,
+    /// Indices (in the input dataset) of the scaled columns that are in the masked dataset, with their `scales` position.
+    pub value_cols: Vec<(usize, usize)>,
+    /// One ready-to-write TAB-separated line per data row of the source:
+    /// `source row, key values..., then masked value and factor for every value column`
+    /// (the factor is `.` when the cell was blank or text and therefore not scaled).
+    pub lines: Vec<String>,
+}
+
+/// Everything `obfuscate_detailed` produces.
+pub struct Detailed {
+    pub out: Dataset,
+    pub key_rows: Vec<KeyRow>,
+    pub plan: Vec<ColumnPlan>,
+    pub date_shift: f64,
+    pub scales: Vec<ScaleRow>,
+    pub per_value: Option<PerValue>,
+}
+
 pub fn obfuscate(ds: &Dataset, opts: &RunOptions, log: &mut TraceLog) -> Result<Masked> {
+    let d = obfuscate_detailed(ds, opts, log)?;
+    Ok((d.out, d.key_rows, d.plan, d.date_shift, d.scales))
+}
+
+pub fn obfuscate_detailed(ds: &Dataset, opts: &RunOptions, log: &mut TraceLog) -> Result<Detailed> {
     log.info(format!(
         "planning columns n={} level={} seed={}",
         ds.n_cols(),
@@ -78,8 +113,11 @@ pub fn obfuscate(ds: &Dataset, opts: &RunOptions, log: &mut TraceLog) -> Result<
     }
 
     // Numeric scaling (level 3+): every valid number of a scaled column is multiplied OR divided
-    // by one random factor drawn for that column. One factor per column keeps within-subject
-    // constancy, ratios and rank order, and the factor is recorded in keymap.txt.
+    // by a random factor drawn for that column. Level 3 uses that one factor for the whole column
+    // (keeps within-subject constancy, ratios and rank order). Level 4 uses it as a base: every
+    // number gets its own factor, base +/- 15 % (uniform), so even ratios and constancy are blurred.
+    // The base factor is recorded in keymap.txt.
+    let spread = if opts.level >= 4 { LEVEL4_SPREAD } else { 0.0 };
     let mut scales: Vec<ScaleRow> = Vec::new();
     for p in plan.iter().filter(|p| p.scale && !p.drop && !p.protect) {
         let factor = if opts.scale_max > opts.scale_min {
@@ -93,17 +131,31 @@ pub fn obfuscate(ds: &Dataset, opts: &RunOptions, log: &mut TraceLog) -> Result<
             index: p.index,
             divide,
             factor,
+            spread,
             values_changed: 0,
         });
     }
     for sc in &scales {
-        log.info(format!(
-            "scaling column {}: every valid number will be {} {:.10}",
-            sc.column,
-            if sc.divide { "divided by" } else { "multiplied by" },
-            sc.factor
-        ));
+        if sc.spread > 0.0 {
+            log.info(format!(
+                "scaling column {}: every valid number will be {} its own random factor, base {:.10} +/- {:.0} %",
+                sc.column,
+                if sc.divide { "divided by" } else { "multiplied by" },
+                sc.factor,
+                sc.spread * 100.0
+            ));
+        } else {
+            log.info(format!(
+                "scaling column {}: every valid number will be {} {:.10}",
+                sc.column,
+                if sc.divide { "divided by" } else { "multiplied by" },
+                sc.factor
+            ));
+        }
     }
+
+    // Own random stream for the per-value factors, so they never disturb the other draws above.
+    let mut value_rng = ChaCha20Rng::seed_from_u64(opts.seed ^ 0x5CA1_E5CA_1E5C_A1E5);
 
     let mut maps: HashMap<usize, HashMap<String, String>> = HashMap::new();
     let mut counters: HashMap<Role, usize> = HashMap::new();
@@ -183,11 +235,53 @@ pub fn obfuscate(ds: &Dataset, opts: &RunOptions, log: &mut TraceLog) -> Result<
         done_by_role.entry(p.role).or_default().push(p.index);
     }
 
+    // Level 4 (per-value factors): which columns identify a row and which carry a varying factor.
+    // Both lists only contain columns that are in the masked dataset.
+    let headers_out_pre = output_headers(&plan, &opts.keep, &ds.headers);
+    let in_output = |name: &str| headers_out_pre.iter().any(|h| h.eq_ignore_ascii_case(name));
+    let pv_value_cols: Vec<(usize, usize)> = if opts.write_keymap {
+        scales
+            .iter()
+            .enumerate()
+            .filter(|(_, sc)| sc.spread > 0.0 && in_output(&sc.column))
+            .map(|(si, sc)| (sc.index, si))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let pv_key_cols: Vec<usize> = {
+        let mut v: Vec<usize> = Vec::new();
+        let mut add = |i: usize| {
+            if !v.contains(&i) {
+                v.push(i);
+            }
+        };
+        // Subject identifiers first, then study columns (STU, STDY, STUDY, STUDYID, ...), then the row keys.
+        for role in [Role::Id, Role::Subject, Role::Study] {
+            for p in plan.iter().filter(|p| p.role == role && !p.drop && in_output(&p.name)) {
+                add(p.index);
+            }
+        }
+        for want in ["TIME", "DVID", "EVID", "CMT"] {
+            if let Some(p) = plan.iter().find(|p| p.name.eq_ignore_ascii_case(want) && !p.drop && in_output(&p.name)) {
+                add(p.index);
+            }
+        }
+        v
+    };
+    let mut per_value: Option<PerValue> = if pv_value_cols.is_empty() {
+        None
+    } else {
+        Some(PerValue { key_cols: pv_key_cols, value_cols: pv_value_cols, lines: Vec::with_capacity(ds.rows.len()) })
+    };
+    let mut cell_factors: Vec<(usize, f64)> = Vec::new();
+
     // Date cells the shifter could not read (mixed formats such as DD/MM/YYYY): column -> (count, first data row).
     let mut unshifted: Vec<(String, usize, usize)> = Vec::new();
     let mut out_rows: Vec<Vec<String>> = Vec::with_capacity(ds.rows.len());
     for (row_no, row) in ds.rows.iter().enumerate() {
         let mut new_row = row.clone();
+        cell_factors.clear();
         for p in &plan {
             if p.drop {
                 continue;
@@ -221,12 +315,39 @@ pub fn obfuscate(ds: &Dataset, opts: &RunOptions, log: &mut TraceLog) -> Result<
             }
             if p.scale {
                 if let Some(sc) = scales.iter_mut().find(|sc| sc.index == p.index) {
-                    if let Some(v) = scale_cell(cell, sc.divide, sc.factor) {
+                    let scaled = if sc.spread > 0.0 {
+                        scale_cell_varying(cell, sc.divide, sc.factor, sc.spread, &mut value_rng)
+                            .map(|(v, f)| {
+                                cell_factors.push((p.index, f));
+                                v
+                            })
+                    } else {
+                        scale_cell(cell, sc.divide, sc.factor)
+                    };
+                    if let Some(v) = scaled {
                         *cell = v;
                         sc.values_changed += 1;
                     }
                 }
             }
+        }
+        if let Some(pv) = per_value.as_mut() {
+            let text = |i: usize| new_row.get(i).map(|s| s.trim().replace(['\t', '\n', '\r'], " ")).unwrap_or_default();
+            let mut line = (row_no + 1).to_string();
+            for &i in &pv.key_cols {
+                line.push('\t');
+                line.push_str(&text(i));
+            }
+            for &(i, _) in &pv.value_cols {
+                line.push('\t');
+                line.push_str(&text(i));
+                line.push('\t');
+                match cell_factors.iter().find(|(c, _)| *c == i) {
+                    Some((_, f)) => line.push_str(&format!("{f}")),
+                    None => line.push('.'),
+                }
+            }
+            pv.lines.push(line);
         }
         out_rows.push(new_row);
     }
@@ -303,11 +424,11 @@ pub fn obfuscate(ds: &Dataset, opts: &RunOptions, log: &mut TraceLog) -> Result<
     };
     // HashMap iteration order is random per process; sort so keymap.txt is identical every run.
     key_rows.sort_by(|a, b| a.column.cmp(&b.column).then_with(|| a.masked.cmp(&b.masked)));
-    Ok((out, key_rows, plan, date_shift, scales))
+    Ok(Detailed { out, key_rows, plan, date_shift, scales, per_value })
 }
 
 /// Distinct non-empty values of a column in order of first appearance.
-fn distinct_values(ds: &Dataset, col: usize) -> Vec<String> {
+pub(crate) fn distinct_values(ds: &Dataset, col: usize) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
     for row in &ds.rows {
@@ -360,7 +481,7 @@ pub struct KeyRow {
     pub masked: String,
 }
 
-fn recode_value(role: Role, original: &str, n: usize, style: IdStyle, seed: u64) -> String {
+pub(crate) fn recode_value(role: Role, original: &str, n: usize, style: IdStyle, seed: u64) -> String {
     if style == IdStyle::Hashed {
         let mut h = Sha256::new();
         h.update(seed.to_le_bytes());
@@ -414,11 +535,23 @@ pub struct ScaleRow {
     pub index: usize,
     /// true: values were divided by `factor`; false: multiplied.
     pub divide: bool,
+    /// Base factor: the factor itself at level 3; the centre of the per-value factors at level 4.
     pub factor: f64,
+    /// 0 = one factor for the whole column (level 3); 0.15 = each value gets base +/- 15 % (level 4).
+    pub spread: f64,
     pub values_changed: usize,
 }
 
 impl ScaleRow {
+    /// Text for keymap.txt: how much the factor varies from value to value.
+    pub fn variation(&self) -> String {
+        if self.spread > 0.0 {
+            format!("+/-{:.0}%", self.spread * 100.0)
+        } else {
+            "none".into()
+        }
+    }
+
     pub fn operation(&self) -> &'static str {
         if self.divide {
             "divide"
@@ -428,15 +561,24 @@ impl ScaleRow {
     }
 }
 
+/// Level 4: like `scale_cell`, but this value gets its own factor, `factor` x (1 +/- `spread`), uniform.
+/// Returns the new text and the factor this value received.
+fn scale_cell_varying(cell: &str, divide: bool, factor: f64, spread: f64, rng: &mut ChaCha20Rng) -> Option<(String, f64)> {
+    let v: f64 = cell.trim().parse().ok().filter(|v: &f64| v.is_finite())?;
+    let f = factor * rng.gen_range((1.0 - spread)..=(1.0 + spread));
+    let nv = if divide { v / f } else { v * f };
+    Some((fmt_sig(nv, 8), f))
+}
+
 /// Multiplies or divides one valid number; blanks, "." and text are left alone (None).
-fn scale_cell(cell: &str, divide: bool, factor: f64) -> Option<String> {
+pub(crate) fn scale_cell(cell: &str, divide: bool, factor: f64) -> Option<String> {
     let v: f64 = cell.trim().parse().ok().filter(|v: &f64| v.is_finite())?;
     let nv = if divide { v / factor } else { v * factor };
     Some(fmt_sig(nv, 8))
 }
 
 /// `x` with `sig` significant digits, no exponent, trailing zeros removed.
-fn fmt_sig(x: f64, sig: i32) -> String {
+pub(crate) fn fmt_sig(x: f64, sig: i32) -> String {
     if x == 0.0 || !x.is_finite() {
         return "0".into();
     }
@@ -466,14 +608,24 @@ pub fn fmt_days(x: f64) -> String {
 /// `days` may be fractional. Date-times (a date followed by a time of day) and numeric day counts
 /// move by exactly `days`; date-only text dates move by `floor(days)` whole days, which keeps the
 /// intervals between date-only values exact.
-fn shift_date_cell(cell: &str, days: f64) -> (String, bool) {
+pub(crate) fn shift_date_cell(cell: &str, days: f64) -> (String, bool) {
+    shift_date_cell_whole(cell, days, days.floor() as i64)
+}
+
+/// Undo `shift_date_cell` for a shift of `days` (whole-day part `whole` = floor(days) as written in keymap.txt).
+pub(crate) fn unshift_date_cell(cell: &str, days: f64, whole: i64) -> (String, bool) {
+    shift_date_cell_whole(cell, -days, -whole)
+}
+
+/// `days` moves date-times and day counts; `whole` moves date-only text dates.
+fn shift_date_cell_whole(cell: &str, days: f64, whole: i64) -> (String, bool) {
     let t = cell.trim();
     if t.is_empty() || t == "." || days == 0.0 {
         return (cell.to_string(), true);
     }
     // Compact dates (20240325, 202403250830, 20240325T0830) are shifted as real dates and keep
     // their compact form; any other number is treated as a day count.
-    if let Some(r) = shift_compact_date(t, days) {
+    if let Some(r) = shift_compact_date(t, days, whole) {
         return (r, true);
     }
     if let Ok(x) = t.parse::<f64>() {
@@ -482,7 +634,7 @@ fn shift_date_cell(cell: &str, days: f64) -> (String, bool) {
         }
     }
     if let Some((d, rest)) = parse_date_prefix(t) {
-        if let Some(r) = shift_date_and_time(d, &rest, days, false) {
+        if let Some(r) = shift_date_and_time(d, &rest, days, false, whole) {
             return (r, true);
         }
     }
@@ -490,7 +642,7 @@ fn shift_date_cell(cell: &str, days: f64) -> (String, bool) {
 }
 
 /// `YYYYMMDD`, optionally followed by `HHMM`/`HHMMSS` digits or a non-digit separator and a time.
-fn shift_compact_date(t: &str, days: f64) -> Option<String> {
+fn shift_compact_date(t: &str, days: f64, whole: i64) -> Option<String> {
     if t.len() < 8 || !t.is_char_boundary(8) || !t[..8].chars().all(|c| c.is_ascii_digit()) {
         return None;
     }
@@ -507,7 +659,7 @@ fn shift_compact_date(t: &str, days: f64) -> Option<String> {
         return None;
     }
     let date = NaiveDate::from_ymd_opt(y, m, d)?;
-    shift_date_and_time(date, rest, days, true)
+    shift_date_and_time(date, rest, days, true, whole)
 }
 
 /// A time of day found after a date: separator, `HH:MM[:SS]` or `HHMM[SS]`, then an opaque suffix.
@@ -568,7 +720,7 @@ fn parse_time_of_day(rest: &str) -> Option<TimeOfDay> {
 /// Shift a parsed date (plus whatever text followed it) by `days`.
 /// With a recognisable time of day the whole date-time moves by exactly `days` (to the minute, or
 /// to the second when the value has seconds); without one the date moves by `floor(days)`.
-fn shift_date_and_time(date: NaiveDate, rest: &str, days: f64, compact: bool) -> Option<String> {
+fn shift_date_and_time(date: NaiveDate, rest: &str, days: f64, compact: bool, whole: i64) -> Option<String> {
     let dfmt = if compact { "%Y%m%d" } else { "%Y-%m-%d" };
     if let Some(tp) = parse_time_of_day(rest) {
         let secs = if tp.s.is_some() {
@@ -586,11 +738,11 @@ fn shift_date_and_time(date: NaiveDate, rest: &str, days: f64, compact: bool) ->
         };
         return Some(format!("{}{}{}{}", nd.format(dfmt), tp.sep, time, tp.suffix));
     }
-    let nd = date.checked_add_signed(chrono::Duration::days(days.floor() as i64))?;
+    let nd = date.checked_add_signed(chrono::Duration::days(whole))?;
     Some(format!("{}{}", nd.format(dfmt), rest))
 }
 
-fn parse_date_prefix(s: &str) -> Option<(NaiveDate, String)> {
+pub(crate) fn parse_date_prefix(s: &str) -> Option<(NaiveDate, String)> {
     const MONTHS: [&str; 12] = [
         "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
     ];
@@ -681,8 +833,10 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
         ds.source_name
     ));
 
-    let (mut out, key_rows, plan, date_shift, scales) = obfuscate(&ds, opts, log)?;
+    let Detailed { mut out, key_rows, plan, date_shift, scales, per_value } = obfuscate_detailed(&ds, opts, log)?;
     emit_warnings(&ds, &plan, &out, opts, log);
+    // Column names of the masked dataset before any renaming (keymap.txt section 5 lists them in order).
+    let out_headers_original = out.headers.clone();
 
     // Subject counts use the original ID column name, so count before any renaming.
     let id_name = plan
@@ -728,6 +882,7 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
         _ => "obfuscated.csv".into(),
     });
     let output_dataset = opts.output_dir.join(&out_name);
+    let out_name_pre = out_name.clone();
     write_dataset(&output_dataset, &out)?;
     log.success(format!(
         "wrote dataset {} ({} rows × {} cols)",
@@ -754,6 +909,79 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
     fs::write(&column_report_path, render_column_report(&plan, &ds, &out, &renames))?;
     log.success(format!("wrote {}", column_report_path.display()));
 
+    // keymap_columns.txt (level 4): written first so keymap.txt can name it; it holds the factor of every scaled cell.
+    let keymap_columns_path = match (&per_value, opts.write_keymap) {
+        (Some(pv), true) => {
+            let p = opts.output_dir.join("keymap_columns.txt");
+            let names = |idx: &[usize]| -> Vec<(String, String)> {
+                idx.iter().map(|&i| (ds.headers[i].clone(), new_name_of(&ds.headers[i]))).collect()
+            };
+            let key_names = names(&pv.key_cols);
+            let value_idx: Vec<usize> = pv.value_cols.iter().map(|v| v.0).collect();
+            let value_names = names(&value_idx);
+            let mut body = String::new();
+            let rule = "# ==============================================================================\n";
+            body.push_str(rule);
+            body.push_str("#  DATA OBFUSCATOR  -  PER-VALUE FACTORS  (keymap_columns.txt)\n");
+            body.push_str("#  Level 4 gave every number in the columns below its OWN random factor. This file records\n");
+            body.push_str("#  that factor for every value, so the `reverse` command can restore the numbers exactly.\n");
+            body.push_str(rule);
+            body.push_str("#\n");
+            body.push_str("#  !! CONFIDENTIAL - KEEP OFFLINE !!  Same rules as keymap.txt: never share it.\n");
+            body.push_str("#\n");
+            body.push_str(&format!("#  Program         : data-obfuscator {} (released {})\n", crate::APP_VERSION, crate::APP_RELEASED));
+            body.push_str(&format!("#  Masked dataset  : {out_name_pre}\n"));
+            body.push_str(&format!("#  Masked SHA-256  : {output_sha256}\n"));
+            body.push_str(&format!("#  Rows described  : {} (every data row of the source, in source order)\n", pv.lines.len()));
+            body.push_str("#\n");
+            body.push_str("#  HOW TO READ IT\n");
+            body.push_str("#    - Lines starting with '#' are comments. Lines starting with '@' describe the layout.\n");
+            body.push_str("#      Every other line is one data row of the source, TAB-separated:\n");
+            body.push_str("#        source_row <TAB> key values ... <TAB> masked value, factor (for each value column)\n");
+            body.push_str("#    - source_row is the position of the row in the SOURCE dataset (1 = first data row), so the\n");
+            body.push_str("#      original row order can be restored even though level 4 sorts rows by masked ID.\n");
+            body.push_str("#    - The key values (@key_columns) are what the masked dataset shows for the identifier columns,\n");
+            body.push_str("#      such as ID and TIME. A row is found by those values plus the masked numbers, so the masked\n");
+            body.push_str("#      dataset may be re-sorted, and its columns re-ordered, before it is reversed.\n");
+            body.push_str("#    - factor is what the ORIGINAL value was multiplied by (@operations says multiply) or divided by\n");
+            body.push_str("#      (divide) to give the masked value. '.' means the cell was blank or text and not scaled.\n");
+            body.push_str("#    - Names in '@...' lines are the names in the MASKED dataset (after any renaming);\n");
+            body.push_str("#      '@..._original' lines give the original names.\n");
+            body.push_str(rule);
+            let tabs = |v: Vec<String>| v.join("\t");
+            body.push_str("@format\t1\n");
+            body.push_str(&format!("@masked_sha256\t{output_sha256}\n"));
+            body.push_str(&format!("@key_columns\t{}\n", tabs(key_names.iter().map(|k| k.1.clone()).collect())));
+            body.push_str(&format!("@key_columns_original\t{}\n", tabs(key_names.iter().map(|k| k.0.clone()).collect())));
+            body.push_str(&format!("@value_columns\t{}\n", tabs(value_names.iter().map(|k| k.1.clone()).collect())));
+            body.push_str(&format!("@value_columns_original\t{}\n", tabs(value_names.iter().map(|k| k.0.clone()).collect())));
+            body.push_str(&format!(
+                "@operations\t{}\n",
+                tabs(pv.value_cols.iter().map(|&(_, si)| scales[si].operation().to_string()).collect())
+            ));
+            body.push_str(&format!(
+                "@base_factors\t{}\n",
+                tabs(pv.value_cols.iter().map(|&(_, si)| format!("{}", scales[si].factor)).collect())
+            ));
+            body.push_str(&format!("@variation\t+/-{:.0}%\n", LEVEL4_SPREAD * 100.0));
+            for l in &pv.lines {
+                body.push_str(l);
+                body.push('\n');
+            }
+            fs::write(&p, body)?;
+            log.success(format!(
+                "wrote {} ({} rows: the factor of every scaled value, needed to reverse level 4 exactly) - keep it offline with keymap.txt",
+                p.display(),
+                pv.lines.len()
+            ));
+            Some(p)
+        }
+        _ => None,
+    };
+    if keymap_columns_path.is_none() && opts.output_dir.join("keymap_columns.txt").exists() {
+        log.warn("keymap_columns.txt from an EARLIER run is still in the output folder (this run did not write one); it does not belong to this dataset and `reverse` would refuse it - delete it or keep it private");
+    }
+
     let keymap_path = if opts.write_keymap {
         let p = opts.output_dir.join("keymap.txt");
         let date_cols: Vec<&str> = plan
@@ -767,6 +995,22 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
             c.sort();
             c.dedup();
             c.len()
+        };
+        // Columns whose original values are not stored anywhere: redacted free text, and columns that are
+        // not in the masked dataset at all (dropped, or not listed in keep).
+        let not_restorable: Vec<(String, String)> = {
+            let mut v: Vec<(String, String)> = Vec::new();
+            for p in plan.iter().filter(|p| p.redact && !p.drop) {
+                if out_headers_original.iter().any(|h| h.eq_ignore_ascii_case(&p.name)) {
+                    v.push((p.name.clone(), "redacted: every cell was replaced by '.', the text is not stored".into()));
+                }
+            }
+            for h in &ds.headers {
+                if !out_headers_original.iter().any(|o| o.eq_ignore_ascii_case(h)) {
+                    v.push((h.clone(), "not in the masked dataset (dropped, or not listed in keep): its values are not stored".into()));
+                }
+            }
+            v
         };
         let rule = "# ==============================================================================\n";
         let thin = "# ------------------------------------------------------------------------------\n";
@@ -788,6 +1032,15 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
         body.push_str(&format!("#  Masking level   : {} ({})\n", opts.level, opts.level_name()));
         body.push_str(&format!("#  Random seed     : {}\n", opts.seed));
         body.push_str(&format!("#  ID style        : {}\n", opts.id_style.as_str()));
+        body.push_str(&match &keymap_columns_path {
+            Some(_) => format!(
+                "#  Per-value file  : keymap_columns.txt ({} rows) - needed to reverse level 4 exactly; keep it with this file\n",
+                per_value.as_ref().map(|p| p.lines.len()).unwrap_or(0)
+            ),
+            None => "#  Per-value file  : none (no value was given its own factor)\n".to_string(),
+        });
+        body.push_str("#\n");
+        body.push_str("#  To undo the masking run:  data-obfuscator reverse --input <masked dataset> --keymap keymap.txt\n");
         body.push_str("#\n");
         body.push_str("#  WHAT IS IN THIS FILE\n");
         body.push_str(&format!(
@@ -807,6 +1060,11 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
             "#    4. IDENTIFIER AND LABEL RECODING    {} value(s) in {} column(s)\n",
             key_rows.len(),
             recoded_cols
+        ));
+        body.push_str(&format!(
+            "#    5. COLUMN ORDER, NOT RESTORABLE     {} column(s) in order; {} column(s) whose values are not stored\n",
+            out_headers_original.len(),
+            not_restorable.len()
         ));
         body.push_str("#\n");
         body.push_str("#  HOW TO READ IT\n");
@@ -831,7 +1089,12 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
         body.push_str(thin);
         body.push_str("# 2. NUMERIC SCALING - every valid number in the column was multiplied or divided by the factor.\n");
         body.push_str("# To restore the original: masked value divided by factor (multiply) or times factor (divide).\n");
-        body.push_str("# Blank, '.' and text cells are unchanged. Format: column<TAB>operation<TAB>factor<TAB>values changed\n");
+        body.push_str("# Variation 'none' (level 3): that one factor was used for every value, so the restore is exact.\n");
+        body.push_str("# Variation '+/-15%' (level 4): the factor is only the BASE; each value was multiplied or divided by\n");
+        body.push_str("# its own random factor within +/-15 % of the base. Those per-value factors are in keymap_columns.txt\n");
+        body.push_str("# (the 'reverse' command uses it); without that file a restore is only approximate (within about 15 %).\n");
+        body.push_str("# Blank, '.' and text cells are unchanged.\n");
+        body.push_str("# Format: column<TAB>operation<TAB>base factor<TAB>values changed<TAB>variation per value\n");
         body.push_str("# (the column is listed under its ORIGINAL name; see section 1 for its new name)\n");
         body.push_str(thin);
         if scales.is_empty() {
@@ -839,11 +1102,12 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
         }
         for sc in &scales {
             body.push_str(&format!(
-                "{}\t{}\t{:.10}\t{}\n",
+                "{}\t{}\t{}\t{}\t{}\n",
                 sc.column,
                 sc.operation(),
                 sc.factor,
-                sc.values_changed
+                sc.values_changed,
+                sc.variation()
             ));
         }
         body.push_str("#\n");
@@ -869,6 +1133,23 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
         body.push_str("column\toriginal\tmasked\n");
         for k in &key_rows {
             body.push_str(&format!("{}\t{}\t{}\n", k.column, k.original, k.masked));
+        }
+        body.push_str("#\n");
+        body.push_str(thin);
+        body.push_str("# 5. COLUMN ORDER, AND WHAT CANNOT BE RESTORED\n");
+        body.push_str("# column_order lists the columns in the order they were written to the masked dataset.\n");
+        body.push_str("#   Format: column_order<TAB>position<TAB>original name<TAB>name in the masked dataset\n");
+        body.push_str("# not_restorable lists columns whose original values are not stored in any file.\n");
+        body.push_str("#   Format: not_restorable<TAB>original name<TAB>why\n");
+        body.push_str(thin);
+        for (i, h) in out_headers_original.iter().enumerate() {
+            body.push_str(&format!("column_order\t{}\t{}\t{}\n", i + 1, h, new_name_of(h)));
+        }
+        if not_restorable.is_empty() {
+            body.push_str("# (every column of the source is in the masked dataset and none was redacted)\n");
+        }
+        for (name, why) in &not_restorable {
+            body.push_str(&format!("not_restorable\t{name}\t{why}\n"));
         }
         fs::write(&p, body)?;
         log.success(format!(
@@ -922,6 +1203,7 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
         scaled_columns: scales.iter().map(|s| s.column.clone()).collect(),
         scale_range: (opts.scale_min, opts.scale_max),
         keymap: keymap_path.is_some(),
+        keymap_columns: keymap_columns_path.is_some(),
         status: "SUCCESS".into(),
     };
     let summary_path = opts.output_dir.join("summary.txt");
@@ -939,6 +1221,7 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
             file_name: &summary.output_file,
             level: opts.level,
             level_name: opts.level_name(),
+            scale_varies: scales.iter().any(|s| s.spread > 0.0),
             scaled: scales
                 .iter()
                 .map(|s| new_name_of(&s.column))
@@ -999,6 +1282,7 @@ pub fn run(opts: &RunOptions, log: &mut TraceLog) -> Result<RunArtifacts> {
         llm_path,
         warnings: log.warn_count(),
         keymap_path,
+        keymap_columns_path,
         dataset: out,
         summary,
         token_report: report,
@@ -1188,7 +1472,7 @@ fn render_column_report(
         } else if p.recode {
             "recoded"
         } else if p.scale {
-            "scaled (x or / hidden factor)"
+            "scaled (x or / hidden factor; varies per value at level 4)"
         } else {
             "passed through"
         };

@@ -109,6 +109,116 @@ fn try_main() -> Result<()> {
                 }
             }
         }
+        Commands::Reverse(args) => {
+            let opts = cli::resolve_reverse(&args)?;
+            let existing = data_obfuscator::reverse::check_output_dir(&opts.output_dir, opts.overwrite)?;
+            std::fs::create_dir_all(&opts.output_dir)
+                .with_context(|| format!("creating {}", opts.output_dir.display()))?;
+            let log_path = opts.output_dir.join("reverse.log");
+            let mut log = TraceLog::open(&log_path, opts.verbose)?;
+            log.info(format!(
+                "argv: {}",
+                std::env::args().collect::<Vec<_>>().join(" ")
+            ));
+            if existing > 0 {
+                log.warn(format!(
+                    "--overwrite: {} already holds {existing} file(s) or folder(s); files with the same names will be replaced",
+                    opts.output_dir.display()
+                ));
+            }
+            let result = catch_unwind(AssertUnwindSafe(|| data_obfuscator::reverse::reverse(&opts, &mut log)));
+            match result {
+                Ok(Ok(art)) => {
+                    let g = |t: &str| ui::green(Stream::Err, t);
+                    eprintln!();
+                    eprintln!("{}", g("[OK] Reverse complete. Files written:"));
+                    for f in [&art.dataset_path, &art.report_path, &art.log_path] {
+                        eprintln!("      {}", g(&f.display().to_string()));
+                    }
+                    if art.warnings > 0 {
+                        eprintln!(
+                            "{}",
+                            ui::orange(
+                                Stream::Err,
+                                &format!("[!] {} warning(s) - read them above and in reverse_report.txt: some values may not be fully restored.", art.warnings)
+                            )
+                        );
+                    }
+                    eprintln!(
+                        "{}",
+                        ui::orange(Stream::Err, "[!] The restored dataset holds the real, identifying data again: do not share it.")
+                    );
+                    Ok(())
+                }
+                Ok(Err(e)) => {
+                    log.error(format!("{e:#}"));
+                    Err(anyhow::Error::new(Reported))
+                }
+                Err(_) => {
+                    log.error("reverse aborted by panic - see FATAL line above");
+                    log.error(format!("log flushed to {}", log_path.display()));
+                    Err(anyhow::Error::new(Reported))
+                }
+            }
+        }
+        Commands::Run2(args) => {
+            use data_obfuscator::run2;
+            let opts = run2::resolve_run2(&args)?;
+            let existing = run2::runner::check_output_dir(&opts)?;
+            let dir = &opts.base.output_dir;
+            std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+            let log_path = dir.join("run2.log");
+            let mut log = TraceLog::open(&log_path, opts.base.verbose)?;
+            log.info(format!("argv: {}", std::env::args().collect::<Vec<_>>().join(" ")));
+            if existing > 0 {
+                log.warn(format!(
+                    "--overwrite: {} already holds {existing} file(s) or folder(s); files with the same names will be replaced",
+                    dir.display()
+                ));
+            }
+            let result = catch_unwind(AssertUnwindSafe(|| run2::run2(&opts, &mut log)));
+            match result {
+                Ok(Ok(art)) => {
+                    let g = |t: &str| ui::green(Stream::Err, t);
+                    eprintln!();
+                    eprintln!("{}", g("[OK] run2 complete. Files written:"));
+                    let mut files: Vec<std::path::PathBuf> = art.masked_files.clone();
+                    files.push(art.llm_path.clone());
+                    files.extend(art.keymap_path.clone());
+                    files.extend([art.summary_path.clone(), art.config_used_path.clone(), art.log_path.clone()]);
+                    for f in files {
+                        eprintln!("      {}", g(&f.display().to_string()));
+                    }
+                    if art.warnings > 0 {
+                        eprintln!(
+                            "{}",
+                            ui::orange(
+                                Stream::Err,
+                                &format!("[!] {} warning(s) - review them above before sharing the masked datasets.", art.warnings)
+                            )
+                        );
+                    }
+                    eprintln!(
+                        "{}",
+                        g("      Share with the LLM: the *_masked files and llm2.txt. Keep private: keymap2.txt, summary2.txt.")
+                    );
+                    eprintln!(
+                        "{}",
+                        g("      Later: data-obfuscator reverse --input master.csv --keymap keymap2.txt  (restores the real values).")
+                    );
+                    Ok(())
+                }
+                Ok(Err(e)) => {
+                    log.error(format!("{e:#}"));
+                    Err(anyhow::Error::new(Reported))
+                }
+                Err(_) => {
+                    log.error("run2 aborted by panic - see FATAL line above");
+                    log.error(format!("log flushed to {}", log_path.display()));
+                    Err(anyhow::Error::new(Reported))
+                }
+            }
+        }
         Commands::Tokens(args) => {
             let (opts, verbose) = cli::resolve_tokens(&args)?;
             std::fs::create_dir_all(&opts.output_dir)
@@ -159,6 +269,9 @@ fn print_run_footer(art: &data_obfuscator::RunArtifacts) {
         art.log_path.clone(),
     ];
     if let Some(k) = &art.keymap_path {
+        files.push(k.clone());
+    }
+    if let Some(k) = &art.keymap_columns_path {
         files.push(k.clone());
     }
     for f in files {

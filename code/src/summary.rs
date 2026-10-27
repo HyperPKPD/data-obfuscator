@@ -30,6 +30,8 @@ pub struct Summary {
     pub scaled_columns: Vec<String>,
     pub scale_range: (f64, f64),
     pub keymap: bool,
+    /// keymap_columns.txt (per-value factors, level 4) was written.
+    pub keymap_columns: bool,
     pub status: String,
 }
 
@@ -105,11 +107,19 @@ pub fn render(s: &Summary) -> String {
         }
     ));
     o.push_str(&format!(
-        "  Keymap written:  {}\n\n",
+        "  Keymap written:  {}\n",
         if s.keymap {
             "yes — DO NOT share keymap.txt with any LLM or external party"
         } else {
             "no"
+        }
+    ));
+    o.push_str(&format!(
+        "  Per-value file:  {}\n\n",
+        if s.keymap_columns {
+            "keymap_columns.txt (factor of every scaled value; needed to reverse level 4 exactly) — DO NOT share it either"
+        } else {
+            "none"
         }
     ));
 
